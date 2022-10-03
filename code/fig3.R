@@ -99,7 +99,7 @@ network_clustering_consp <- merge(network_clustering_dat, network_homophily_clea
 
 
 # dataset 4 - social network data
-dat4 <- read.csv("data/social_network_dat_merged.csv")
+dat4 <- read.csv("C:\\manuscripts\\social-network-prl\\data\\social_network_dat_merged.csv")
 dat4 <- dat4[which(dat4$id %in% network_clustering_consp$id),]
 dat4$dataset <- "social_network"
 
@@ -129,6 +129,388 @@ names(cluster_network_df) <- c("id","net_size","tot_edges","tot_weak_ties","tot_
                                "deg_centrality_score","constraint","kinship","conspiracy_score","similarity_mean","similarity_weightedSum")
 
 cluster_network_paranoia_df <- merge(cluster_network_df, dat4, by=c("id"))
+
+wsr_dat <- read.csv("C:/manuscripts/social-network-prl/data/wsr_dat.csv")
+wsr_df <- wsr_dat[,c("id","wsr")]
+sna_wsr_dat <- merge(cluster_network_paranoia_df,wsr_df,by=c("id"))
+sna_wsr_dat$paranoia_group <- factor(sna_wsr_dat$paranoia_group, levels = c("low","high"))
+
+# wsr (actual) differences by paranoia group
+library(ggpubr)
+g1 <- ggboxplot(
+  sna_wsr_dat, x = "paranoia_group", y = "wsr",
+  color = "paranoia_group", palette = c("blue","red"), 
+  #facet.by = "type", 
+  short.panel.labs = FALSE
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+g1
+
+sna_wsr_sim_dat <- read.csv("C:\\grant\\paranoia_ref_per\\paranoiaRefPer\\archive\\socialnetworkPRL\\hgf\\hgfToolBox\\sim_wsr.csv")
+sna_wsr_sim_dat$sim_wsr <- rowMeans(cbind(sna_wsr_sim_dat$sim_wsr1,sna_wsr_sim_dat$sim_wsr2))
+
+sna_wsr_merged_sim <- merge(sna_wsr_dat,sna_wsr_sim_dat,by=c("id"))
+
+sna_wsr_merged_sim_subset <- sna_wsr_merged_sim[,c("id","paranoia_group","wsr","sim_wsr")]
+
+library(rstatix)
+wsr_merged_sim_long_df<- sna_wsr_merged_sim_subset %>%
+  gather(key = "type", value = "score", wsr, sim_wsr) %>%
+  convert_as_factor(id, paranoia_group)
+wsr_merged_sim_long_df$paranoia_group <- factor(wsr_merged_sim_long_df$paranoia_group, levels = c("low","high"))
+
+wsr_merged_sim_long_df$type <- factor(wsr_merged_sim_long_df$type, levels = c("wsr","sim_wsr"))
+
+library(ggpubr)
+g2 <- ggboxplot(
+  wsr_merged_sim_long_df, x = "paranoia_group", y = "score",
+  color = "paranoia_group", palette = c("#5B8FAF","#800000"), 
+  facet.by = "type", short.panel.labs = FALSE, panel.labs = list(type = c("true","simulated"))
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+g2
+
+
+library(Metrics)
+bias(sna_wsr_merged_sim_subset$wsr,sna_wsr_merged_sim_subset$sim_wsr) # Bias = -0.201
+rmse(sna_wsr_merged_sim_subset$wsr,sna_wsr_merged_sim_subset$sim_wsr) # RMSE = 0.338
+cor(sna_wsr_merged_sim_subset$wsr,sna_wsr_merged_sim_subset$sim_wsr) # r = 0.341
+cor(sna_wsr_merged_sim_subset$wsr,sna_wsr_merged_sim_subset$sim_wsr)^2 # R^2 = 0.117
+# p-value: p < 0.001
+
+graph1 <- ggplot(sna_wsr_merged_sim_subset , aes(x=wsr, 
+                                         y=sim_wsr)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(#aes(color = paranoia_group),
+    color = "purple",
+    shape=16,
+    size=2,
+    alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=-1,label.y=-0.3, size=5)+
+  labs(title = "", x="win-switch rate (true)", y="win-switch rate (simulated)") +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+
+
+# correlation plot between mu03 [real] vs paranoia
+source("C:/grant/paranoia_ref_per/paranoiaRefPer/archive/socialnetworkPRL/code/theme_publication.R")
+
+tmp_hgf_est <- read.csv('C:\\grant\\paranoia_ref_per\\paranoiaRefPer\\archive\\socialnetworkPRL\\hgf\\hgfToolBox\\sna_Est.csv')
+tmp_hgf_est_merged <- merge(cluster_network_paranoia_df, tmp_hgf_est, by=c("id"))
+tmp_hgf_sim <- read.csv('C:\\grant\\paranoia_ref_per\\paranoiaRefPer\\archive\\socialnetworkPRL\\hgf\\hgfToolBox\\sna_iterations.csv') #sna_SimRecoveryParameterBlocks.csv
+
+tmp_hgf_sim$mu02_sim <- rowMeans(cbind(tmp_hgf_sim$mu02_1e,tmp_hgf_sim$mu02_2e))
+tmp_hgf_sim$mu03_sim <- rowMeans(cbind(tmp_hgf_sim$mu03_1e,tmp_hgf_sim$mu03_2e))
+tmp_hgf_sim$kappa_sim <- rowMeans(cbind(tmp_hgf_sim$kappa_1e,tmp_hgf_sim$kappa_2e))
+tmp_hgf_sim$omega2_sim <- rowMeans(cbind(tmp_hgf_sim$omega2_1e,tmp_hgf_sim$omega2_2e))  
+tmp_hgf_sim$omega3_sim <- rowMeans(cbind(tmp_hgf_sim$omega3_1e,tmp_hgf_sim$omega3_2e))
+tmp_hgf_sim$type <- "recovered"
+
+
+
+tmp_hgf_sim_iterations <- tmp_hgf_sim[,c(1,18,12:17)]
+tmp_hgf_sim_iterations_df <- tmp_hgf_sim_iterations %>%
+                             group_by(id,type) %>%
+                             summarise(mu02 = mean(mu02_sim, na.rm = T),
+                                       mu03 = mean(mu03_sim, na.rm = T),
+                                       kappa = mean(kappa_sim, na.rm = T),
+                                       omega2 = mean(omega2_sim, na.rm = T),
+                                       omega3 = mean(omega3_sim, na.rm = T))
+
+
+
+actual_dat <- cluster_network_paranoia_df[,c("id","mu02","mu03","kappa","omega2","omega3")]  
+actual_dat$type <- "actual"
+
+#recovered_dat <- tmp_hgf_sim[,c(1,12:17)]
+#colnames(recovered_dat) <- c("id","mu02","mu03","kappa","omega2","omega3","type")
+
+recovered_dat <- tmp_hgf_sim_iterations_df
+
+recovered_dat1 <- tmp_hgf_sim_iterations_df[,-c(2)]
+colnames(recovered_dat1) <- c("id","mu02_sim","mu03_sim","kappa_sim","omega2_sim","omega3_sim")
+tmp_hgf_sim_merged <- merge(cluster_network_paranoia_df, recovered_dat1, by=c("id"))
+
+
+actual_recovered_dat <- rbind(actual_dat,recovered_dat)
+paranoia_group_dat <- cluster_network_paranoia_df[,c("id","paranoia_group")]
+actual_recovered_paranoia_dat <- merge(actual_recovered_dat,paranoia_group_dat,by="id")
+actual_recovered_paranoia_dat$paranoia_group <- factor(actual_recovered_paranoia_dat$paranoia_group, levels = c("low","high"))
+
+
+library(ggpubr)
+p1 <- ggboxplot(
+  actual_recovered_paranoia_dat, x = "paranoia_group", y = "mu02",
+  color = "paranoia_group", palette = "jco", 
+  facet.by = "type", short.panel.labs = FALSE
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+p1
+
+p2 <- ggboxplot(
+  actual_recovered_paranoia_dat, x = "paranoia_group", y = "mu03",
+  color = "paranoia_group", palette = c("#5B8FAF","#800000"), 
+  facet.by = "type", short.panel.labs = FALSE, panel.labs = list(type = c("true","simulated"))
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+p2
+
+p3 <- ggboxplot(
+  actual_recovered_paranoia_dat, x = "paranoia_group", y = "kappa",
+  color = "paranoia_group", palette = "jco", 
+  facet.by = "type", short.panel.labs = FALSE
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+p3
+
+p4 <- ggboxplot(
+  actual_recovered_paranoia_dat, x = "paranoia_group", y = "omega2",
+  color = "paranoia_group", palette = "jco", 
+  facet.by = "type", short.panel.labs = FALSE
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+p4
+
+p5 <- ggboxplot(
+  actual_recovered_paranoia_dat, x = "paranoia_group", y = "omega3",
+  color = "paranoia_group", palette = "jco", 
+  facet.by = "type", short.panel.labs = FALSE
+) +
+  stat_compare_means(
+    method = "t.test", label = "p.format",
+    comparisons=list(c("low","high"))
+  )
+p5
+
+# parameter recovery performance metrics
+library(Metrics)
+bias(tmp_hgf_sim_merged$mu02,tmp_hgf_sim_merged$mu02_sim) # Bias = -0.201
+rmse(tmp_hgf_sim_merged$mu02,tmp_hgf_sim_merged$mu02_sim) # RMSE = 0.338
+cor(tmp_hgf_sim_merged$mu02,tmp_hgf_sim_merged$mu02_sim) # r = 0.341
+cor(tmp_hgf_sim_merged$mu02,tmp_hgf_sim_merged$mu02_sim)^2 # R^2 = 0.117
+# p-value: p < 0.001
+
+plot1 <- ggplot(tmp_hgf_sim_merged , aes(x=mu02, 
+                                         y=mu02_sim)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(#aes(color = paranoia_group),
+             color = "purple",
+             shape=16,
+             size=2,
+             alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=-1,label.y=-0.3, size=5)+
+  labs(title = "", x=paste0(expression(mu[2]^0),"(actual)"), y=paste0(expression(mu[2]^0),"(recovered)")) +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+
+bias(tmp_hgf_sim_merged$mu03,tmp_hgf_sim_merged$mu03_sim) # Bias = -1.669
+rmse(tmp_hgf_sim_merged$mu03,tmp_hgf_sim_merged$mu03_sim) # RMSE = 2.085
+cor(tmp_hgf_sim_merged$mu03,tmp_hgf_sim_merged$mu03_sim) # r = 0.229
+cor(tmp_hgf_sim_merged$mu03,tmp_hgf_sim_merged$mu03_sim)^2 # R^2 = 0.052
+# p-value: p < 0.001
+
+plot2 <- ggplot(tmp_hgf_sim_merged , aes(x=mu03, 
+                                         y=mu03_sim)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(#aes(color = paranoia_group),
+    color = "purple",
+    shape=16,
+    size=2,
+    alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=-3,label.y=-0.75, size=5)+
+  labs(title = "", x=paste0(expression(mu[3]^0),"(actual)"), y=paste0(expression(mu[3]^0),"(recovered)")) +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+bias(tmp_hgf_sim_merged$kappa,tmp_hgf_sim_merged$kappa_sim) # Bias = -0.111
+rmse(tmp_hgf_sim_merged$kappa,tmp_hgf_sim_merged$kappa_sim) # RMSE = 0.129
+cor(tmp_hgf_sim_merged$kappa,tmp_hgf_sim_merged$kappa_sim) # r = 0.175
+# p-value: p < 0.001
+
+plot3 <- ggplot(tmp_hgf_sim_merged , aes(x=kappa, 
+                                         y=kappa_sim)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(#aes(color = paranoia_group),
+    color = "purple",
+    shape=16,
+    size=2,
+    alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=0.4,label.y=0.45, size=5)+
+  labs(title = "", x=paste0(expression(kappa),"(actual)"), y=paste0(expression(kappa),"(recovered)")) +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+bias(tmp_hgf_sim_merged$omega2,tmp_hgf_sim_merged$omega2_sim) # Bias = 2.151
+rmse(tmp_hgf_sim_merged$omega2,tmp_hgf_sim_merged$omega2_sim) # RMSE = 2.339
+cor(tmp_hgf_sim_merged$omega2,tmp_hgf_sim_merged$omega2_sim) # r = 0.668
+# p-value: p < 0.001
+
+plot4 <- ggplot(tmp_hgf_sim_merged , aes(x=omega2, 
+                                         y=omega2_sim)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(#aes(color = paranoia_group),
+    color = "purple",
+    shape=16,
+    size=2,
+    alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=-1,label.y=1, size=5)+
+  labs(title = "", x=paste0(expression(omega[2]),"(actual)"), y=paste0(expression(omega[2]),"(recovered)")) +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+bias(tmp_hgf_sim_merged$omega3,tmp_hgf_sim_merged$omega3_sim) # Bias = 0.966
+rmse(tmp_hgf_sim_merged$omega3,tmp_hgf_sim_merged$omega3_sim) # RMSE = 1.259
+cor(tmp_hgf_sim_merged$omega3,tmp_hgf_sim_merged$omega3_sim) # r = 0.291
+# p-value: p < 0.001
+
+plot5 <- ggplot(tmp_hgf_sim_merged , aes(x=omega3, 
+                                         y=omega3_sim)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(#aes(color = paranoia_group),
+    color = "purple",
+    shape=16,
+    size=2,
+    alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=-1,label.y=1, size=5)+
+  labs(title = "", x=paste0(expression(omega[3]),"(actual)"), y=paste0(expression(omega[3]),"(recovered)")) +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+library(ggpubr)
+g1 <- ggarrange(p1,plot1,ncol=2)
+g2 <- ggarrange(p2,plot2,ncol=2)
+g3 <- ggarrange(p3,plot3,ncol=2)
+g4 <- ggarrange(p4,plot4,ncol=2)
+g5 <- ggarrange(p5,plot5,ncol=2)
+
+
+library(ggplot2)
+plot1 <- ggplot(tmp_hgf_sim_merged, aes(x=mu03, y=paranoia_score)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(aes(color = paranoia_group),shape=16,size=2,alpha=0.4) + ggpubr::stat_cor(label.x=-3.5,label.y=3, size=7)+
+  labs(title = "", x=paste0(expression(mu[3]^0),"(true)"), y="Paranoia") +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+plot2 <- ggplot(tmp_hgf_sim_merged, aes(x=mu03_sim, y=paranoia_score)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(aes(color = paranoia_group),shape=16,size=2,alpha=0.4) + 
+  ggpubr::stat_cor(label.x=0,label.y=3, size=7)+
+  labs(title = "", x=paste0(expression(mu[3]^0),"(recovered)"), y="Paranoia") +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+plot3 <- ggplot(tmp_hgf_sim_merged, aes(x=mu03, y=mu03_sim)) + 
+  geom_smooth(method="lm" , fill = "#1b0000", color = "black") + 
+  geom_point(aes(color = paranoia_group),shape=16,size=2,alpha=0.4) + 
+  #ggpubr::stat_cor(label.x=-3.5,label.y=3, size=7)+
+  labs(title = "", x=paste0(expression(mu[3]^0),"(true)"), y=paste0(expression(mu[3]^0),"(recovered)")) +
+  scale_color_manual(values = c("#800000","#5B8FAF")) +
+  theme_Publication() + 
+  theme(legend.position = "none"
+        #axis.text.x = element_blank(),
+        #axis.title.x = element_blank(),
+        #axis.text.y = element_blank(),
+        #axis.title.y = element_blank()
+        #       axis.text = element_text(size=20),
+        #       axis.title.y = element_text(size=30),
+        #       axis.title.x = element_text(size=20)
+  )
+
+library(ggpubr)
+ggarrange(plot1,plot2,ncol = 2)
 
 
 anxiety_depression_dat <- read.csv('C:\\grant\\paranoia_ref_per\\paranoiaRefPer\\data\\anxiety_depression.csv')
@@ -351,6 +733,12 @@ summary(backward_full)
 lm_full <- lm(mu03 ~ paranoia_score*net_size*tot_strong_ties*kinship*assumed_belief_group, data = merged_dat1)
 summary(lm_full)
 backward_full = step(lm(lm_full, data = merged_dat1), method = "backward")
+summary(backward_full)
+
+# predicting mu03 based on network features including assumed belief
+lm_full <- lm(wsr ~ paranoia_score*net_size*tot_strong_ties*kinship*assumed_belief_group, data = merged_dat2)
+summary(lm_full)
+backward_full = step(lm(lm_full, data = merged_dat2), method = "backward")
 summary(backward_full)
 
 # theme_publication (for plot aesthetics) code can be found in Suthaharan et al 2021, Nature
